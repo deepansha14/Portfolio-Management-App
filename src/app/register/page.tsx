@@ -1,13 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { initializeApp } from "firebase/app";
-import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ChartBarIcon } from "@heroicons/react/24/outline";
+import { v4 as uuidv4 } from "uuid";
 
 const RegisterPage = () => {
   const router = useRouter();
@@ -15,7 +15,6 @@ const RegisterPage = () => {
   const [userType, setUserType] = useState("investor");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -26,12 +25,8 @@ const RegisterPage = () => {
   });
   const [otpStep, setOtpStep] = useState(false);
   const [emailOtp, setEmailOtp] = useState("");
-  const [mobileOtp, setMobileOtp] = useState("");
   const [otpError, setOtpError] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
-  const [firebaseSent, setFirebaseSent] = useState(false);
-  const [confirmationResult, setConfirmationResult] = useState<any>(null);
-  const recaptchaRef = useRef<any>(null);
 
   // Firebase config from environment variables
   const firebaseConfig = {
@@ -78,22 +73,23 @@ const RegisterPage = () => {
     setLoading(true);
     setOtpError("");
     try {
-      // Send OTPs to email and mobile
+      // Send OTP to email only
       const res = await fetch("/api/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, mobile }),
+        body: JSON.stringify({ email }),
       });
       const result = await res.json();
       setLoading(false);
       if (result.success) {
+        console.log("[DEBUG] OTP step triggered");
         setOtpStep(true);
       } else {
-        setOtpError(result.error || "Failed to send OTPs");
+        setOtpError(result.error || "Failed to send OTP");
       }
     } catch (err) {
       setLoading(false);
-      setOtpError("Failed to send OTPs. Please try again.");
+      setOtpError("Failed to send OTP. Please try again.");
     }
   };
 
@@ -102,7 +98,7 @@ const RegisterPage = () => {
     e.preventDefault();
     setOtpLoading(true);
     setOtpError("");
-    // 1. Verify email OTP
+    // Verify email OTP only
     const emailRes = await fetch("/api/verify-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -114,28 +110,16 @@ const RegisterPage = () => {
       setOtpError(emailResult.error || "Invalid email OTP");
       return;
     }
-    // 2. Verify mobile OTP (Firebase)
+    // Register user
     try {
-      if (!confirmationResult) {
-        setOtpLoading(false);
-        setOtpError("Please send OTP to your phone first.");
-        return;
-      }
-      await confirmationResult.confirm(mobileOtp);
-    } catch (err) {
-      setOtpLoading(false);
-      setOtpError("Invalid mobile OTP");
-      return;
-    }
-    // 3. Register user
-    try {
+      const userId = uuidv4(); // Generate UUID for the user
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: userId,
           name,
           email,
-          mobile,
           password,
           userType,
         }),
@@ -146,7 +130,7 @@ const RegisterPage = () => {
         if (userType === "admin") {
           router.push("/admin/dashboard");
         } else if (userType === "investor") {
-          router.push("/investor/info-form");
+          router.push(`/investor/info-form?userId=${userId}`); // Redirect to input form with userId
         }
       } else {
         setOtpError(result.error || "Registration failed");
@@ -154,25 +138,6 @@ const RegisterPage = () => {
     } catch (err) {
       setOtpLoading(false);
       setOtpError("Registration failed. Please try again.");
-    }
-  };
-
-  // Send Firebase OTP to phone
-  const sendFirebaseOtp = async () => {
-    setOtpError("");
-    setOtpLoading(true);
-    try {
-      const auth = getAuth();
-      if (!recaptchaRef.current) {
-        recaptchaRef.current = new RecaptchaVerifier('recaptcha-container', { size: 'invisible' }, auth);
-      }
-      const confirmation = await signInWithPhoneNumber(auth, mobile, recaptchaRef.current);
-      setConfirmationResult(confirmation);
-      setFirebaseSent(true);
-      setOtpLoading(false);
-    } catch (err) {
-      setOtpLoading(false);
-      setOtpError("Failed to send SMS OTP. Check phone number and try again.");
     }
   };
 
@@ -218,18 +183,6 @@ const RegisterPage = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Mobile Number
-              </label>
-              <Input
-                type="tel"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                placeholder="Enter your mobile number"
                 required
               />
             </div>
@@ -317,8 +270,7 @@ const RegisterPage = () => {
                 !email ||
                 !password ||
                 !confirmPassword ||
-                !name ||
-                !mobile
+                !name
               }
             >
               {loading ? "Creating account..." : "Create Account"}
@@ -348,24 +300,6 @@ const RegisterPage = () => {
                   placeholder="Enter the 6-digit code"
                   required
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Enter Mobile OTP (sent via Firebase)
-                </label>
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    value={mobileOtp}
-                    onChange={e => setMobileOtp(e.target.value)}
-                    placeholder="Enter the 6-digit code"
-                    required
-                  />
-                  <Button type="button" onClick={sendFirebaseOtp} disabled={otpLoading || firebaseSent}>
-                    {firebaseSent ? "OTP Sent" : "Send OTP"}
-                  </Button>
-                </div>
-                <div id="recaptcha-container"></div>
               </div>
               {otpError && (
                 <div className="text-sm text-red-500 mt-1">{otpError}</div>
