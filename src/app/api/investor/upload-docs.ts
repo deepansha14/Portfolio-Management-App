@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
           // Save metadata to DynamoDB
           await docClient.send(
             new PutCommand({
-              TableName: process.env.AWS_DYNAMODB_TABLE,
+              TableName: process.env.DYNAMO_USER_TABLE_NAME,
               Item: {
                 id: fileId,
                 investorId: fields.investorId || "unknown",

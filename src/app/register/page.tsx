@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { initializeApp } from "firebase/app";
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -27,6 +29,24 @@ const RegisterPage = () => {
   const [mobileOtp, setMobileOtp] = useState("");
   const [otpError, setOtpError] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
+  const [firebaseSent, setFirebaseSent] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState<any>(null);
+  const recaptchaRef = useRef<any>(null);
+
+  // Firebase config from environment variables
+  const firebaseConfig = {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
+  };
+  // Only initialize once
+  if (typeof window !== "undefined" && !(window as any)._firebaseInitialized) {
+    initializeApp(firebaseConfig);
+    (window as any)._firebaseInitialized = true;
+  }
 
   const handlePasswordChange = (value: string) => {
     setPassword(value);
@@ -51,31 +71,119 @@ const RegisterPage = () => {
     setPasswordStrength({ level, progress });
   };
 
+  // Step 1: Send OTPs
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) return;
     setLoading(true);
-    // Simulate registration API call here
-    setTimeout(() => {
+    setOtpError("");
+    try {
+      // Send OTPs to email and mobile
+      const res = await fetch("/api/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, mobile }),
+      });
+      const result = await res.json();
       setLoading(false);
-      if (userType === "admin") {
-        router.push("/admin/dashboard");
-      } else if (userType === "investor") {
-        router.push("/investor/info-form"); // Redirect to investor info form after signup
+      if (result.success) {
+        setOtpStep(true);
+      } else {
+        setOtpError(result.error || "Failed to send OTPs");
       }
-    }, 1000);
+    } catch (err) {
+      setLoading(false);
+      setOtpError("Failed to send OTPs. Please try again.");
+    }
   };
 
-  // OTP verification disabled
+  // Step 2: Verify OTPs and register
+  const handleOtpVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpLoading(true);
+    setOtpError("");
+    // 1. Verify email OTP
+    const emailRes = await fetch("/api/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, emailOtp }),
+    });
+    const emailResult = await emailRes.json();
+    if (!emailResult.success) {
+      setOtpLoading(false);
+      setOtpError(emailResult.error || "Invalid email OTP");
+      return;
+    }
+    // 2. Verify mobile OTP (Firebase)
+    try {
+      if (!confirmationResult) {
+        setOtpLoading(false);
+        setOtpError("Please send OTP to your phone first.");
+        return;
+      }
+      await confirmationResult.confirm(mobileOtp);
+    } catch (err) {
+      setOtpLoading(false);
+      setOtpError("Invalid mobile OTP");
+      return;
+    }
+    // 3. Register user
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          mobile,
+          password,
+          userType,
+        }),
+      });
+      const result = await res.json();
+      setOtpLoading(false);
+      if (result.success) {
+        if (userType === "admin") {
+          router.push("/admin/dashboard");
+        } else if (userType === "investor") {
+          router.push("/investor/info-form");
+        }
+      } else {
+        setOtpError(result.error || "Registration failed");
+      }
+    } catch (err) {
+      setOtpLoading(false);
+      setOtpError("Registration failed. Please try again.");
+    }
+  };
+
+  // Send Firebase OTP to phone
+  const sendFirebaseOtp = async () => {
+    setOtpError("");
+    setOtpLoading(true);
+    try {
+      const auth = getAuth();
+      if (!recaptchaRef.current) {
+        recaptchaRef.current = new RecaptchaVerifier('recaptcha-container', { size: 'invisible' }, auth);
+      }
+      const confirmation = await signInWithPhoneNumber(auth, mobile, recaptchaRef.current);
+      setConfirmationResult(confirmation);
+      setFirebaseSent(true);
+      setOtpLoading(false);
+    } catch (err) {
+      setOtpLoading(false);
+      setOtpError("Failed to send SMS OTP. Check phone number and try again.");
+    }
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-100 to-purple-200 dark:from-gray-900 dark:to-gray-800">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="max-w-md w-full mx-4"
       >
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 my-10">
           <div className="text-center mb-8">
             <div className="mx-auto w-16 h-16 bg-primary-600 rounded-full flex items-center justify-center mb-4">
               <ChartBarIcon className="w-8 h-8 text-white" />
@@ -87,7 +195,8 @@ const RegisterPage = () => {
               Create a new account
             </p>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {!otpStep ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Full Name
@@ -225,7 +334,47 @@ const RegisterPage = () => {
                 </a>
               </p>
             </div>
-          </form>
+            </form>
+          ) : (
+            <form onSubmit={handleOtpVerify} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Enter Email OTP (sent via Brevo)
+                </label>
+                <Input
+                  type="text"
+                  value={emailOtp}
+                  onChange={e => setEmailOtp(e.target.value)}
+                  placeholder="Enter the 6-digit code"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Enter Mobile OTP (sent via Firebase)
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={mobileOtp}
+                    onChange={e => setMobileOtp(e.target.value)}
+                    placeholder="Enter the 6-digit code"
+                    required
+                  />
+                  <Button type="button" onClick={sendFirebaseOtp} disabled={otpLoading || firebaseSent}>
+                    {firebaseSent ? "OTP Sent" : "Send OTP"}
+                  </Button>
+                </div>
+                <div id="recaptcha-container"></div>
+              </div>
+              {otpError && (
+                <div className="text-sm text-red-500 mt-1">{otpError}</div>
+              )}
+              <Button type="submit" className="w-full" disabled={otpLoading}>
+                {otpLoading ? "Verifying..." : "Verify & Complete Registration"}
+              </Button>
+            </form>
+          )}
         </div>
       </motion.div>
     </div>

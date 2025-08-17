@@ -1,8 +1,10 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { generateAccessToken, generateRefreshToken } from "@/lib/auth";
-// We'll remove bcryptjs for now since it's not installed
 import { cookies } from "next/headers";
-import routes from "@/lib/routes";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
+import bcrypt from "bcryptjs";
 
 interface LoginRequestBody {
   email: string;
@@ -21,31 +23,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // In a real application, you would fetch the user from your database
-    // For this example, we'll use mock users
-    let user;
+    // Fetch user from DynamoDB
+    const REGION = process.env.AWS_REGION || "us-east-1";
+    const TABLE_NAME = process.env.DYNAMO_USER_TABLE_NAME || "Users";
+    const ddb = new DynamoDBClient({ region: REGION });
+    const docClient = DynamoDBDocumentClient.from(ddb);
+    const getUser = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { email },
+      })
+    );
+    const user = getUser.Item;
+    if (!user) {
+      return NextResponse.json(
+        { error: "Invalid email or password" },
+        { status: 401 }
+      );
+    }
 
-    if (email === "investor@example.com" && password === "demo123") {
-      user = {
-        id: "client-1",
-        name: "Sarah Johnson",
-        email: "investor@example.com",
-        role: "investor",
-        password: "demo123", // In real app, this would be a hashed password
-      };
-    } else if (
-      email === "advisor@portfoliomanager.com" &&
-      password === "admin123"
-    ) {
-      user = {
-        id: "admin-1",
-        name: "John Smith",
-        email: "advisor@portfoliomanager.com",
-        role: "admin",
-        password: "admin123", // In real app, this would be a hashed password
-      };
-    } else {
-      // In a real app, you would check if the user exists and verify the password
+    // Compare password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
@@ -54,13 +53,13 @@ export async function POST(request: NextRequest) {
 
     // Generate tokens
     const accessToken = await generateAccessToken({
-      userId: user.id,
+      userId: user.id || user.email,
       email: user.email,
       role: user.role,
     });
 
     const refreshToken = await generateRefreshToken({
-      userId: user.id,
+      userId: user.id || user.email,
       email: user.email,
       role: user.role,
     });
