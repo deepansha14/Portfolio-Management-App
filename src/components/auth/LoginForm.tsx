@@ -9,6 +9,7 @@ import {
   ShieldCheckIcon,
   EyeIcon,
   EyeSlashIcon,
+  ChartBarIcon,
 } from "@heroicons/react/24/outline";
 import routes from "@/lib/routes";
 
@@ -28,9 +29,11 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg("");
     setLoading(true);
     try {
       const selectedRole = userType;
@@ -57,7 +60,7 @@ export function LoginForm() {
       });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Login failed");
+        setErrorMsg(error.error || "Invalid email or password");
         setLoading(false);
         return;
       }
@@ -78,7 +81,7 @@ export function LoginForm() {
         router.push("/dashboard");
       }
     } catch (err) {
-      alert("Login failed. Please try again.");
+      setErrorMsg("Login failed. Please try again.");
       setLoading(false);
     }
   };
@@ -93,12 +96,15 @@ export function LoginForm() {
       animate={{ opacity: 1, y: 0 }}
       className="max-w-md w-full mx-auto"
     >
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-100 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-100 dark:border-gray-700 m-8">
         <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2 text-center">
+          <div className="mx-auto w-16 h-16 bg-primary-600 rounded-full flex items-center justify-center mb-4">
+              <ChartBarIcon className="w-8 h-8 text-white" />
+            </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white text-center">
             {userType === "admin" ? "Advisor Login" : "Investor Login"}
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2 text-center">
             {userType === "admin"
               ? "Sign in to your advisor account to manage portfolios."
               : "Sign in to your investor account to view your investments."}
@@ -107,6 +113,19 @@ export function LoginForm() {
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
+          {errorMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-md bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm flex items-center gap-2 shadow-sm"
+              role="alert"
+            >
+              <svg className="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12A9 9 0 113 12a9 9 0 0118 0z" />
+              </svg>
+              <span>{errorMsg}</span>
+            </motion.div>
+          )}
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center">
               <UserIcon className="h-4 w-4 mr-1.5 text-gray-500" />
