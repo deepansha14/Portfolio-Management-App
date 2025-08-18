@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { Select } from "@/components/ui/Select";
 import { FormSection } from "@/components/ui/FormSection";
+import { Button } from "@/components/ui/Button";
 
 interface FamilyDetailsSectionProps {
   spouse: {
@@ -42,6 +43,19 @@ const FamilyDetailsSection: React.FC<FamilyDetailsSectionProps> = ({
   parent,
   handleChange,
 }) => {
+  const [children, setChildren] = useState<number[]>([1]); // Start with one child
+
+  const addChild = () => {
+    if (children.length < 2) { // Limit to 2 children for now based on existing state management
+      setChildren([...children, children.length + 1]);
+    }
+  };
+  
+  const removeChild = (childNum: number) => {
+    if (children.length > 1) { // Always keep at least one child form
+      setChildren(children.filter(num => num !== childNum));
+    }
+  };
   return (
     <FormSection
       title="Family Details"
@@ -93,85 +107,79 @@ const FamilyDetailsSection: React.FC<FamilyDetailsSectionProps> = ({
         </div>
         {/* Children section */}
         <div className="border-b border-gray-200 dark:border-gray-700 pb-8 mb-8">
-          <h4 className="text-lg font-semibold text-[#0A2540] dark:text-white mb-6">
-            Children Information
-          </h4>
-          <div className="grid grid-cols-1 gap-y-8">
-            {/* Child 1 */}
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6">
-              <h5 className="font-medium text-[#0A2540] dark:text-white mb-4">
-                Child 1
-              </h5>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                <Input
-                  name="name"
-                  value={child1.name}
-                  onChange={(e) => handleChange("child1", e)}
-                  label="Name"
-                />
-                <DatePicker
-                  name="dob"
-                  value={child1.dob}
-                  onChange={(e) => handleChange("child1", e)}
-                  label="Date of Birth"
-                />
-                <Select
-                  name="relation"
-                  value={child1.relation}
-                  onChange={(e) => handleChange("child1", e)}
-                  options={[
-                    { value: "", label: "Select Relationship" },
-                    { value: "Son", label: "Son" },
-                    { value: "Daughter", label: "Daughter" },
-                  ]}
-                  label="Relationship"
-                />
-                <Input
-                  name="education"
-                  value={child1.education}
-                  onChange={(e) => handleChange("child1", e)}
-                  label="Education"
-                />
-              </div>
-            </div>
-            {/* Child 2 */}
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6">
-              <h5 className="font-medium text-[#0A2540] dark:text-white mb-4">
-                Child 2
-              </h5>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                <Input
-                  name="name"
-                  value={child2.name}
-                  onChange={(e) => handleChange("child2", e)}
-                  label="Name"
-                />
-                <DatePicker
-                  name="dob"
-                  value={child2.dob}
-                  onChange={(e) => handleChange("child2", e)}
-                  label="Date of Birth"
-                />
-                <Select
-                  name="relation"
-                  value={child2.relation}
-                  onChange={(e) => handleChange("child2", e)}
-                  options={[
-                    { value: "", label: "Select Relationship" },
-                    { value: "Son", label: "Son" },
-                    { value: "Daughter", label: "Daughter" },
-                  ]}
-                  label="Relationship"
-                />
-                <Input
-                  name="education"
-                  value={child2.education}
-                  onChange={(e) => handleChange("child2", e)}
-                  label="Education"
-                />
-              </div>
-            </div>
+          <div className="mb-6">
+            <h4 className="text-lg font-semibold text-[#0A2540] dark:text-white">
+              Children Information
+            </h4>
           </div>
+
+          <div className="grid grid-cols-1 gap-y-8">
+            {children.map((childNum) => (
+              <div key={childNum} className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6 relative">
+                <div className="flex justify-between items-center mb-4">
+                  <h5 className="font-medium text-[#0A2540] dark:text-white">
+                    Child {childNum}
+                  </h5>
+                  {children.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeChild(childNum)}
+                      className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 transition-colors duration-200"
+                      aria-label={`Remove Child ${childNum}`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                  <Input
+                    name="name"
+                    value={childNum === 1 ? child1.name : child2.name}
+                    onChange={(e) => handleChange(childNum === 1 ? "child1" : "child2", e)}
+                    label="Name"
+                  />
+                  <DatePicker
+                    name="dob"
+                    value={childNum === 1 ? child1.dob : child2.dob}
+                    onChange={(e) => handleChange(childNum === 1 ? "child1" : "child2", e)}
+                    label="Date of Birth"
+                  />
+                  <Select
+                    name="relation"
+                    value={childNum === 1 ? child1.relation : child2.relation}
+                    onChange={(e) => handleChange(childNum === 1 ? "child1" : "child2", e)}
+                    options={[
+                      { value: "", label: "Select Relationship" },
+                      { value: "Son", label: "Son" },
+                      { value: "Daughter", label: "Daughter" },
+                    ]}
+                    label="Relationship"
+                  />
+                  <Input
+                    name="education"
+                    value={childNum === 1 ? child1.education : child2.education}
+                    onChange={(e) => handleChange(childNum === 1 ? "child1" : "child2", e)}
+                    label="Education"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {children.length < 2 && (
+            <button
+              type="button"
+              onClick={addChild}
+              className="mt-4 flex items-center justify-center w-full py-3 px-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 hover:border-[#0A2540] hover:text-[#0A2540] dark:hover:border-gray-400 dark:hover:text-white transition-colors duration-200 group"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform duration-200" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              <span className="font-medium">Add Child</span>
+            </button>
+          )}
         </div>
         {/* Parents section */}
         <div>

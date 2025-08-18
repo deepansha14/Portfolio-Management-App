@@ -51,7 +51,7 @@ export function Input({
       {error && (
         <p
           id={`${inputId}-error`}
-          className="text-sm text-[#E74C3C] dark:text-red-400 mt-1 transition-opacity animate-fadeIn"
+          className="text-sm text-[#E74C3C] dark:text-red-400 mt-1 transition-opacity animate-fadeIn error-message"
         >
           {error}
         </p>

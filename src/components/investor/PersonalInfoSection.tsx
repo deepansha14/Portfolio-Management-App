@@ -30,11 +30,73 @@ interface PersonalInfoSectionProps {
   ) => void;
 }
 
+const validateEmail = (email: string) => {
+  const emailRegex = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
+  return emailRegex.test(email);
+};
+
+const validatePhoneNumber = (phone: string) => {
+  const phoneRegex = /^[6-9]\d{9}$/;
+  return phoneRegex.test(phone);
+};
+
+const validatePanCard = (pan: string) => {
+  const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+  return panRegex.test(pan);
+};
+
 const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
   personal,
   errors,
   handleChange,
 }) => {
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleChange("personal", e);
+    if (!validateEmail(e.target.value)) {
+      errors.email = "Invalid email format";
+    } else {
+      errors.email = "";
+    }
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleChange("personal", e);
+    if (!validatePhoneNumber(e.target.value)) {
+      errors.mobile = "Invalid mobile number";
+    } else {
+      errors.mobile = "";
+    }
+  };
+
+  const handleOccupationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleChange("personal", e);
+    if (!e.target.value.trim()) {
+      errors.occupation = "Occupation is required";
+    } else {
+      errors.occupation = "";
+    }
+  };
+
+  const handlePanChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleChange("personal", e);
+    if (!validatePanCard(e.target.value)) {
+      errors.pan = "Invalid PAN format (e.g. ABCDE1234F)";
+    } else {
+      errors.pan = "";
+    }
+  };
+
+  const handleChangeWithErrorClear = (
+    section: string,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    handleChange(section, e);
+    if (value.trim()) {
+      errors[name] = ""; // Clear the error if a value is provided
+    }
+  };
+
   return (
     <FormSection
       title="Personal Information"
@@ -64,7 +126,7 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
           value={personal.dob}
           onChange={(e) => handleChange("personal", e)}
           label="Date of Birth"
-          error={errors.dob}
+          error={errors.dob} // Pass error prop for dob
           required
         />
         <Input
@@ -113,7 +175,7 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
         <Input
           name="pan"
           value={personal.pan}
-          onChange={(e) => handleChange("personal", e)}
+          onChange={handlePanChange}
           label="PAN"
           error={errors.pan}
           required
@@ -123,17 +185,16 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
         <Input
           name="mobile"
           value={personal.mobile}
-          onChange={(e) => handleChange("personal", e)}
+          onChange={handlePhoneChange}
           label="Mobile Number"
           error={errors.mobile}
           required
           pattern="^[6-9]\d{9}$"
-          helperText="10 digits starting with 6-9"
         />
         <Input
           name="email"
           value={personal.email}
-          onChange={(e) => handleChange("personal", e)}
+          onChange={handleEmailChange}
           label="Email ID"
           error={errors.email}
           type="email"
@@ -179,7 +240,7 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
         <Input
           name="occupation"
           value={personal.occupation}
-          onChange={(e) => handleChange("personal", e)}
+          onChange={handleOccupationChange}
           label="Occupation"
           error={errors.occupation}
           required

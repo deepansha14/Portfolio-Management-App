@@ -9,6 +9,7 @@ import PersonalInfoSection from "@/components/investor/PersonalInfoSection";
 import FamilyDetailsSection from "@/components/investor/FamilyDetailsSection";
 import NomineeInvestmentSection from "@/components/investor/NomineeInvestmentSection";
 import IncomeDetailsSection from "@/components/investor/IncomeDetailsSection";
+import RequirementDetailsSection from "../../../components/investor/RequirementDetailsSection";
 import ReviewSubmitSection from "@/components/investor/ReviewSubmitSection";
 
 const initialPersonal = {
@@ -38,6 +39,7 @@ const initialPersonal = {
   netbanking: "",
   debitCard: "",
   smoker: "",
+  claimingHRA: "",
 };
 
 const initialSpouse = {
@@ -78,9 +80,132 @@ const InvestorInfoForm = () => {
     otherMonthly: "",
     otherAnnual: "",
   });
+  
+  // Expenses state
+  const [expenses, setExpenses] = useState({
+    household: "",
+    maid: "",
+    bills: "",
+    transport: "",
+    childrenFee1: "",
+    childrenFee2: "",
+    rent: "",
+    parentsContribution: "",
+    miscellaneous: "",
+    memberships: "",
+    emi: "",
+    insurance: "",
+    others: "",
+  });
+  
+  // Residual state
+  const [residual, setResidual] = useState({
+    buffer: "",
+    others: "",
+  });
+  
+  // Investments state
+  const [investments, setInvestments] = useState({
+    shortTermSIP: "",
+    longTermSIP: "",
+  });
+  
+  // Bonuses state
+  const [bonuses, setBonuses] = useState<Array<{amount: string, month: string}>>([]);
+  
+  // Existing assets state
+  const [existingAssets, setExistingAssets] = useState<Array<{
+    assetType: string,
+    currentValue: string,
+    investorName: string
+  }>>([]);
+  
+  // Detailed assets state
+  const [detailedAssets, setDetailedAssets] = useState<Array<{
+    assetType: string,
+    srNo: number,
+    assetDetails: string,
+    currentValue: string,
+    monthlyYearlyContribution: string,
+    assetInTheNameOf: string,
+    taggingTo: string,
+    retainInRespectiveAccount: string,
+    investingInAssortedMF: string,
+    investingInDebtMF: string
+  }>>([]);
+  
+  // Requirement details state
+  const [requirements, setRequirements] = useState({
+    shortTerm: "",
+    midTerm: "",
+    longTerm: "",
+    riskAppetite: "",
+    preferredInvestments: "",
+    additionalInfo: ""
+  });
+  
+    // Initialize client-side only states
+  useEffect(() => {
+    // Initialize bonuses if empty
+    if (bonuses.length === 0) {
+      setBonuses([{ amount: "", month: "" }]);
+    }
+    
+    // Initialize existing assets if empty
+    if (existingAssets.length === 0) {
+      setExistingAssets([
+        { assetType: "SB Account", currentValue: "", investorName: "" },
+        { assetType: "FD", currentValue: "", investorName: "" },
+        { assetType: "RD", currentValue: "", investorName: "" },
+        { assetType: "MF", currentValue: "", investorName: "" }
+      ]);
+    }
+    
+    // Initialize detailed assets with example data if empty
+    if (detailedAssets.length === 0) {
+      setDetailedAssets([
+        { 
+          assetType: "Bank", 
+          srNo: 1, 
+          assetDetails: "", 
+          currentValue: "", 
+          monthlyYearlyContribution: "", 
+          assetInTheNameOf: "", 
+          taggingTo: "", 
+          retainInRespectiveAccount: "", 
+          investingInAssortedMF: "", 
+          investingInDebtMF: "" 
+        },
+        { 
+          assetType: "Retirement Assets", 
+          srNo: 2, 
+          assetDetails: "", 
+          currentValue: "", 
+          monthlyYearlyContribution: "", 
+          assetInTheNameOf: "", 
+          taggingTo: "", 
+          retainInRespectiveAccount: "", 
+          investingInAssortedMF: "", 
+          investingInDebtMF: "" 
+        },
+        { 
+          assetType: "Equity & MFs", 
+          srNo: 3, 
+          assetDetails: "", 
+          currentValue: "", 
+          monthlyYearlyContribution: "", 
+          assetInTheNameOf: "", 
+          taggingTo: "", 
+          retainInRespectiveAccount: "", 
+          investingInAssortedMF: "", 
+          investingInDebtMF: "" 
+        }
+      ]);
+    }
+  }, [bonuses.length, existingAssets.length, detailedAssets.length]);
 
   // Form state management
-  const [currentStep, setCurrentStep] = useState(4);
+  const [currentStep, setCurrentStep] = useState(5);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saveMessage, setSaveMessage] = useState("");
@@ -93,6 +218,7 @@ const InvestorInfoForm = () => {
   ]
     .map((v) => parseFloat(v) || 0)
     .reduce((a, b) => a + b, 0);
+    
   const totalAnnual = [
     income.selfAnnual,
     income.spouseAnnual,
@@ -100,11 +226,16 @@ const InvestorInfoForm = () => {
   ]
     .map((v) => parseFloat(v) || 0)
     .reduce((a, b) => a + b, 0);
+    
+  // Calculate total expenses
+  const totalExpenses = Object.values(expenses)
+    .map((v) => parseFloat(v) || 0)
+    .reduce((a, b) => a + b, 0);
 
   // Handlers
   const handleChange = (
     section: string,
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
     if (section === "personal") setPersonal({ ...personal, [name]: value });
@@ -113,6 +244,10 @@ const InvestorInfoForm = () => {
     if (section === "child2") setChild2({ ...child2, [name]: value });
     if (section === "parent") setParent({ ...parent, [name]: value });
     if (section === "income") setIncome({ ...income, [name]: value });
+    if (section === "expenses") setExpenses({ ...expenses, [name]: value });
+    if (section === "residual") setResidual({ ...residual, [name]: value });
+    if (section === "investments") setInvestments({ ...investments, [name]: value });
+    if (section === "requirements") setRequirements({ ...requirements, [name]: value });
   };
 
   const handleToggleChange = (
@@ -124,54 +259,230 @@ const InvestorInfoForm = () => {
       setPersonal({ ...personal, [field]: checked ? "yes" : "no" });
     }
   };
+  
+  // Handle bonus changes
+  const handleBonusChange = (index: number, field: string, value: string) => {
+    const updatedBonuses = [...bonuses];
+    updatedBonuses[index] = { ...updatedBonuses[index], [field]: value };
+    setBonuses(updatedBonuses);
+  };
+  
+  // Add new bonus entry
+  const handleAddBonus = () => {
+    setBonuses([...bonuses, { amount: "", month: "" }]);
+  };
+  
+  // Remove bonus entry
+  const handleRemoveBonus = (index: number) => {
+    if (bonuses.length > 1) {
+      const updatedBonuses = [...bonuses];
+      updatedBonuses.splice(index, 1);
+      setBonuses(updatedBonuses);
+    }
+  };
+  
+  // Handle existing asset changes
+  const handleExistingAssetChange = (index: number, field: string, value: string) => {
+    const updatedAssets = [...existingAssets];
+    updatedAssets[index] = { ...updatedAssets[index], [field]: value };
+    setExistingAssets(updatedAssets);
+  };
+  
+  // Add new asset entry
+  const handleAddAsset = () => {
+    setExistingAssets([...existingAssets, { assetType: "", currentValue: "", investorName: "" }]);
+  };
+  
+  // Remove asset entry
+  const handleRemoveAsset = (index: number) => {
+    if (existingAssets.length > 1) {
+      const updatedAssets = [...existingAssets];
+      updatedAssets.splice(index, 1);
+      setExistingAssets(updatedAssets);
+    }
+  };
+  
+  // Handle detailed asset changes
+  const handleDetailedAssetChange = (index: number, field: string, value: string | boolean | number) => {
+    const updatedAssets = [...detailedAssets];
+    updatedAssets[index] = { ...updatedAssets[index], [field]: value };
+    setDetailedAssets(updatedAssets);
+  };
+  
+  // Add new detailed asset entry
+  const handleAddDetailedAsset = (assetType: string) => {
+    // Find the highest srNo across all asset types
+    const maxSrNo = detailedAssets.length > 0
+      ? Math.max(...detailedAssets.map(asset => asset.srNo))
+      : 0;
+    
+    // Add new asset with the next sequential number
+    setDetailedAssets([...detailedAssets, { 
+      assetType, 
+      srNo: maxSrNo + 1, 
+      assetDetails: "", 
+      currentValue: "", 
+      monthlyYearlyContribution: "", 
+      assetInTheNameOf: "", 
+      taggingTo: "", 
+      retainInRespectiveAccount: "0", 
+      investingInAssortedMF: "0", 
+      investingInDebtMF: "0" 
+    }]);
+  };
+  
+  // Remove detailed asset entry
+  const handleRemoveDetailedAsset = (index: number) => {
+    const updatedAssets = [...detailedAssets];
+    
+    // Get the srNo of the asset being removed
+    const removedSrNo = updatedAssets[index].srNo;
+    
+    // Remove the asset
+    updatedAssets.splice(index, 1);
+    
+    // Renumber all assets with higher srNo values
+    updatedAssets.forEach(asset => {
+      if (asset.srNo > removedSrNo) {
+        asset.srNo -= 1;
+      }
+    });
+    
+    setDetailedAssets(updatedAssets);
+  };
 
   // Validation
   const validatePersonalInfo = () => {
     const newErrors: Record<string, string> = {};
-    if (!personal.name) newErrors.name = "Name is required";
-    if (!personal.placeOfBirth)
-      newErrors.placeOfBirth = "Place of birth is required";
-    if (!personal.dob) newErrors.dob = "Date of birth is required";
-    if (!personal.address) newErrors.address = "Address is required";
-    if (!personal.city) newErrors.city = "City is required";
-    if (!personal.gender) newErrors.gender = "Gender is required";
-    if (!personal.status) newErrors.status = "Status is required";
-    if (!personal.pan) {
-      newErrors.pan = "PAN is required";
-    } else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(personal.pan)) {
-      newErrors.pan = "Invalid PAN format (e.g. ABCDE1234F)";
+    const isEmpty = (value: any) => value === null || value === undefined || value === "";
+
+    // Only validate the current step's fields
+    if (currentStep === 1) {
+      // Validate personal info fields
+      Object.entries(personal).forEach(([key, value]) => {
+        // Skip fields that are not part of personal info section
+        if (['nomineeName', 'nomineeRelation', 'nomineeDob', 'nomineeAadhar', 
+             'nomineePassport', 'sipDate', 'netbanking', 'debitCard', 'smoker'].includes(key)) {
+          return;
+        }
+        if (isEmpty(value)) newErrors[key] = `${key} is required`;
+      });
+
+      // Validate format for specific fields if they have values
+      if (personal.pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(personal.pan)) {
+        newErrors.pan = "Invalid PAN format (e.g. ABCDE1234F)";
+      }
+      if (personal.mobile && !/^[6-9]\d{9}$/.test(personal.mobile)) {
+        newErrors.mobile = "Invalid mobile number";
+      }
+      if (personal.email && !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(personal.email)) {
+        newErrors.email = "Invalid email format";
+      }
+    } else if (currentStep === 2) {
+      // Family details are optional, only validate format if values are provided
+      // Validate PAN format for spouse if provided
+      if (spouse.pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(spouse.pan)) {
+        newErrors.spouse_pan = "Invalid PAN format (e.g. ABCDE1234F)";
+      }
+    } else if (currentStep === 3) {
+      // Validate nominee fields
+      ['nomineeName', 'nomineeRelation', 'nomineeDob', 'nomineeAadhar', 
+       'nomineePassport', 'sipDate'].forEach(key => {
+        if (isEmpty(personal[key as keyof typeof personal])) {
+          newErrors[key] = `${key} is required`;
+        }
+      });
+    } else if (currentStep === 4) {
+      // Validate income fields - all are required
+      Object.entries(income).forEach(([key, value]) => {
+        if (isEmpty(value)) {
+          newErrors[key] = `This field is required`;
+        } else if (!/^\d*\.?\d*$/.test(value)) {
+          // Double-check numeric format
+          newErrors[key] = "Please enter numbers only";
+        }
+      });
+      
+      // Validate expense fields - only validate numeric format if values are provided
+      Object.entries(expenses).forEach(([key, value]) => {
+        if (value && !/^\d*\.?\d*$/.test(value)) {
+          newErrors[`expense_${key}`] = "Please enter numbers only";
+        }
+      });
+      
+      // Validate bonus amounts - check numeric format
+      bonuses.forEach((bonus, index) => {
+        if (bonus.amount && !/^\d*\.?\d*$/.test(bonus.amount)) {
+          newErrors[`bonus_${index}_amount`] = "Please enter numbers only";
+        }
+      });
+      
+      // Validate existing assets - check numeric format for current value
+      existingAssets.forEach((asset, index) => {
+        if (asset.currentValue && !/^\d*\.?\d*$/.test(asset.currentValue)) {
+          newErrors[`asset_${index}_value`] = "Please enter numbers only";
+        }
+      });
+      
+      // Validate detailed assets - check numeric format for values
+      detailedAssets.forEach((asset, index) => {
+        if (asset.currentValue && !/^\d*\.?\d*$/.test(asset.currentValue)) {
+          newErrors[`detailed_asset_${index}_value`] = "Please enter numbers only";
+        }
+        if (asset.monthlyYearlyContribution && !/^\d*\.?\d*$/.test(asset.monthlyYearlyContribution)) {
+          newErrors[`detailed_asset_${index}_contribution`] = "Please enter numbers only";
+        }
+        // Validate the monetary fields
+        if (asset.retainInRespectiveAccount && !/^\d*\.?\d*$/.test(asset.retainInRespectiveAccount)) {
+          newErrors[`detailed_asset_${index}_retain`] = "Please enter numbers only";
+        }
+        if (asset.investingInAssortedMF && !/^\d*\.?\d*$/.test(asset.investingInAssortedMF)) {
+          newErrors[`detailed_asset_${index}_assorted`] = "Please enter numbers only";
+        }
+        if (asset.investingInDebtMF && !/^\d*\.?\d*$/.test(asset.investingInDebtMF)) {
+          newErrors[`detailed_asset_${index}_debt`] = "Please enter numbers only";
+        }
+      });
+      
+      // Validate claiming HRA
+      if (isEmpty(personal.claimingHRA)) {
+        newErrors.claimingHRA = "Please select Yes or No";
+      }
+    } else if (currentStep === 5) {
+      // Validate requirement details
+      if (isEmpty(requirements.shortTerm)) {
+        newErrors.shortTerm = "Short term goals are required";
+      }
+      if (isEmpty(requirements.midTerm)) {
+        newErrors.midTerm = "Mid term goals are required";
+      }
+      if (isEmpty(requirements.longTerm)) {
+        newErrors.longTerm = "Long term goals are required";
+      }
+      if (isEmpty(requirements.riskAppetite)) {
+        newErrors.riskAppetite = "Risk appetite is required";
+      }
     }
-    if (!personal.mobile) {
-      newErrors.mobile = "Mobile number is required";
-    } else if (!/^[6-9]\d{9}$/.test(personal.mobile)) {
-      newErrors.mobile = "Invalid mobile number";
-    }
-    if (!personal.email) {
-      newErrors.email = "Email is required";
-    } else if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(personal.email)) {
-      newErrors.email = "Invalid email format";
-    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   // Step navigation
   const handleNextStep = () => {
-    if (currentStep === 1) {
-      if (validatePersonalInfo()) {
-        setCurrentStep(2);
-        window.scrollTo({ top: 0, behavior: "smooth" });
+    // Validate the current step fields
+    if (!validatePersonalInfo()) {
+      // Scroll to first error if validation fails
+      const firstErrorElement = document.querySelector('.error-message');
+      if (firstErrorElement) {
+        firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    } else if (currentStep === 2) {
-      setCurrentStep(3);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } else if (currentStep === 3) {
-      setCurrentStep(4);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } else if (currentStep === 4) {
-      setCurrentStep(5);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
     }
+    
+    // If validation passes, move to next step
+    setCurrentStep(currentStep + 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handlePreviousStep = () => {
@@ -198,8 +509,8 @@ const InvestorInfoForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Validate only the current step
     if (!validatePersonalInfo()) {
-      setCurrentStep(1);
       return;
     }
     setLoading(true);
@@ -259,9 +570,14 @@ const InvestorInfoForm = () => {
               current: currentStep === 4,
             },
             {
+              label: "Requirement Details",
+              completed: currentStep > 5,
+              current: currentStep === 5,
+            },
+            {
               label: "Review & Submit",
               completed: false,
-              current: currentStep === 5,
+              current: currentStep === 6,
             },
           ]}
         />
@@ -293,12 +609,38 @@ const InvestorInfoForm = () => {
           {currentStep === 4 && (
             <IncomeDetailsSection
               income={income}
+              personal={personal}
+              expenses={expenses}
+              residual={residual}
+              investments={investments}
+              bonuses={bonuses}
+              existingAssets={existingAssets}
               handleChange={handleChange}
+              handleToggleChange={handleToggleChange}
+              handleBonusChange={handleBonusChange}
+              handleAddBonus={handleAddBonus}
+              handleRemoveBonus={handleRemoveBonus}
+              handleExistingAssetChange={handleExistingAssetChange}
+              handleAddAsset={handleAddAsset}
+              handleRemoveAsset={handleRemoveAsset}
               totalMonthly={totalMonthly}
               totalAnnual={totalAnnual}
+              totalExpenses={totalExpenses}
+              errors={errors}
             />
           )}
           {currentStep === 5 && (
+            <RequirementDetailsSection
+              requirements={requirements}
+              detailedAssets={detailedAssets}
+              handleChange={handleChange}
+              handleDetailedAssetChange={handleDetailedAssetChange}
+              handleAddDetailedAsset={handleAddDetailedAsset}
+              handleRemoveDetailedAsset={handleRemoveDetailedAsset}
+              errors={errors}
+            />
+          )}
+          {currentStep === 6 && (
             <ReviewSubmitSection
               personal={personal}
               income={income}
@@ -306,6 +648,8 @@ const InvestorInfoForm = () => {
               child1={child1}
               child2={child2}
               parent={parent}
+              requirements={requirements}
+              detailedAssets={detailedAssets}
             />
           )}
           <div className="mt-10 pt-8 border-t border-gray-200 dark:border-gray-700 flex flex-wrap justify-between">
@@ -326,7 +670,7 @@ const InvestorInfoForm = () => {
               >
                 Save Progress
               </Button>
-              {currentStep < 5 ? (
+              {currentStep < 6 ? (
                 <Button
                   type="button"
                   onClick={handleNextStep}

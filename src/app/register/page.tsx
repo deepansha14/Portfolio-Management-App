@@ -82,7 +82,6 @@ const RegisterPage = () => {
       const result = await res.json();
       setLoading(false);
       if (result.success) {
-        console.log("[DEBUG] OTP step triggered");
         setOtpStep(true);
       } else {
         setOtpError(result.error || "Failed to send OTP");
@@ -286,6 +285,13 @@ const RegisterPage = () => {
                 </a>
               </p>
             </div>
+            <Button
+              type="button"
+              className="w-full mt-4 bg-blue-500 text-white"
+              onClick={() => router.push(`/investor/info-form?userId=test-user-id`)}
+            >
+              Go to Info Form (Test)
+            </Button>
             </form>
           ) : (
             <form onSubmit={handleOtpVerify} className="space-y-4">
