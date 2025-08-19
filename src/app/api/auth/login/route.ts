@@ -1,83 +1,104 @@
 
-import { NextRequest, NextResponse } from "next/server";
-import { generateAccessToken, generateRefreshToken } from "@/lib/auth";
-import { cookies } from "next/headers";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { NextResponse } from "next/server";
+import { DynamoDBClient, ScanCommand } from "@aws-sdk/client-dynamodb";
 import bcrypt from "bcryptjs";
+import { sign } from "jsonwebtoken";
 
-interface LoginRequestBody {
-  email: string;
-  password: string;
+const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
+
+async function findUserByEmail(email: string) {
+  try {
+    // Scan the table to find user by email since userId is the primary key
+    const params = {
+      TableName: process.env.DYNAMO_USER_TABLE_NAME,
+      FilterExpression: "email = :email AND isActive = :isActive",
+      ExpressionAttributeValues: {
+        ":email": { S: email },
+        ":isActive": { BOOL: true }
+      }
+    };
+    
+    const result = await dynamoClient.send(new ScanCommand(params));
+    
+    if (!result.Items || result.Items.length === 0) {
+      return null;
+    }
+    
+    // Return the first user found (should only be one per email)
+    return result.Items[0];
+  } catch (error: any) {
+    console.error("[DEBUG] Failed to find user by email:", error);
+    return null;
+  }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body = (await request.json()) as LoginRequestBody;
-    const { email, password } = body;
+    const { email, password } = await req.json();
 
     if (!email || !password) {
-      return NextResponse.json(
-        { error: "Email and password are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Email and password required" }, { status: 400 });
     }
 
-    // Fetch user from DynamoDB
-    const REGION = process.env.AWS_REGION || "us-east-1";
-    const TABLE_NAME = process.env.DYNAMO_USER_TABLE_NAME || "Users";
-    const ddb = new DynamoDBClient({ region: REGION });
-    const docClient = DynamoDBDocumentClient.from(ddb);
-    const getUser = await docClient.send(
-      new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { email },
-      })
-    );
-    const user = getUser.Item;
+    // Find user by email
+    const user = await findUserByEmail(email);
+    
     if (!user) {
-      return NextResponse.json(
-        { error: "Invalid email or password" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    // Compare password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return NextResponse.json(
-        { error: "Invalid email or password" },
-        { status: 401 }
-      );
+    // Verify password
+    const storedPassword = user.password?.S;
+    if (!storedPassword) {
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    // Generate tokens
-    const accessToken = await generateAccessToken({
-      userId: user.id || user.email,
-      email: user.email,
-      role: user.role,
-    });
+    const isValidPassword = await bcrypt.compare(password, storedPassword);
+    if (!isValidPassword) {
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    }
 
-    const refreshToken = await generateRefreshToken({
-      userId: user.id || user.email,
-      email: user.email,
-      role: user.role,
-    });
+    // Generate JWT tokens
+    const accessToken = sign(
+      { 
+        userId: user.userId?.S, 
+        email: user.email?.S, 
+        userType: user.userType?.S 
+      },
+      process.env.JWT_SECRET || "fallback-secret",
+      { expiresIn: "15m" }
+    );
+
+    const refreshToken = sign(
+      { 
+        userId: user.userId?.S, 
+        email: user.email?.S 
+      },
+      process.env.JWT_REFRESH_SECRET || "fallback-refresh-secret",
+      { expiresIn: "7d" }
+    );
+
+    // Prepare user data (exclude password)
+    const userWithoutPassword = { ...user };
+    delete userWithoutPassword.password;
 
     // Set cookies
-    cookies().set({
-      name: "accessToken",
-      value: accessToken,
+    const response = NextResponse.json({ 
+      success: true, 
+      user: userWithoutPassword,
+      message: "Login successful" 
+    });
+
+    // Set secure cookies
+    response.cookies.set("accessToken", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 60 * 60, // 1 hour
+      maxAge: 15 * 60, // 15 minutes
       path: "/",
     });
 
-    cookies().set({
-      name: "refreshToken",
-      value: refreshToken,
+    response.cookies.set("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
@@ -85,14 +106,11 @@ export async function POST(request: NextRequest) {
       path: "/",
     });
 
-    // Return user data (excluding password)
-    const { password: _, ...userWithoutPassword } = user;
-    return NextResponse.json(userWithoutPassword);
-  } catch (error) {
-    console.error("Login error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return response;
+  } catch (error: any) {
+    console.error("[DEBUG] Login failed:", error);
+    return NextResponse.json({ 
+      error: "Login failed. Please try again." 
+    }, { status: 500 });
   }
 }

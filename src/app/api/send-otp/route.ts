@@ -1,22 +1,70 @@
 import { NextResponse } from "next/server";
 import { saveOtp } from "@/lib/otpStore";
-import { DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
-
+import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 
+function generateTempUserId() {
+  return `otp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
 async function saveOtpToDynamoDB(email: string, emailOtp: string) {
   const expires = Math.floor(Date.now() / 1000) + 60; // 1 minute from now
-  const params = {
-    TableName: process.env.DYNAMO_USER_TABLE_NAME,
-    Key: { email: { S: email } },
-    UpdateExpression: "SET otp = :otp, otpExpires = :expires",
-    ExpressionAttributeValues: {
-      ":otp": { S: emailOtp },
-      ":expires": { N: expires.toString() },
-    },
-  };
-  await dynamoClient.send(new UpdateItemCommand(params));
+  
+  try {
+    // Generate a temporary userId for OTP storage
+    // This will be used to create the actual user record after OTP verification
+    const tempUserId = generateTempUserId();
+    
+    // Store OTP in DynamoDB using userId as the primary key
+    const params = {
+      TableName: process.env.DYNAMO_USER_TABLE_NAME,
+      Item: {
+        userId: { S: tempUserId },
+        email: { S: email },
+        otp: { S: emailOtp },
+        otpExpires: { N: expires.toString() },
+        otpType: { S: "registration" },
+        createdAt: { S: new Date().toISOString() },
+        isTempUser: { BOOL: true } // Flag to identify temporary OTP records
+      }
+    };
+    
+    console.log("[DEBUG] Storing OTP in DynamoDB with tempUserId:", tempUserId);
+    await dynamoClient.send(new PutItemCommand(params));
+    console.log("[DEBUG] Successfully stored OTP in DynamoDB");
+    return true;
+  } catch (error: any) {
+    console.error("[DEBUG] DynamoDB OTP storage failed:", error);
+    
+    // If it's a schema validation error, the table structure might be different
+    if (error.name === 'ValidationException') {
+      console.error("[DEBUG] Schema validation error. Table structure might not support the required attributes.");
+      console.error("[DEBUG] Error details:", error.message);
+      
+      // Fall back to in-memory storage
+      console.log("[DEBUG] Falling back to in-memory OTP storage");
+      try {
+        await saveOtp(email, emailOtp, expires);
+        console.log("[DEBUG] Successfully saved OTP to in-memory store");
+        return true;
+      } catch (memError) {
+        console.error("[DEBUG] In-memory storage also failed:", memError);
+        return false;
+      }
+    }
+    
+    // For other errors, try in-memory storage as fallback
+    console.log("[DEBUG] Trying in-memory OTP storage as fallback");
+    try {
+      await saveOtp(email, emailOtp, expires);
+      console.log("[DEBUG] Successfully saved OTP to in-memory store");
+      return true;
+    } catch (memError) {
+      console.error("[DEBUG] In-memory storage failed:", memError);
+      return false;
+    }
+  }
 }
 
 function generateOtp() {
@@ -57,19 +105,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Email required" }, { status: 400 });
   }
 
-  // Generate OTPs
   const emailOtp = generateOtp();
   console.log("[DEBUG] Generated OTP:", emailOtp, "for email:", email);
-  // For demo, we don't send SMS OTP, just use Firebase client-side
 
-  // Send email OTP via Brevo
   try {
     await sendEmailOtp(email, emailOtp);
   } catch (e: any) {
     return NextResponse.json({ error: e.message || "Failed to send email OTP" }, { status: 500 });
   }
-  // Store OTP in DynamoDB
-  await saveOtpToDynamoDB(email, emailOtp);
+
+  // Store OTP in DynamoDB (or fallback to in-memory)
+  const storageSuccess = await saveOtpToDynamoDB(email, emailOtp);
+  
+  if (!storageSuccess) {
+    console.warn("[DEBUG] OTP storage failed, but email was sent. User may not be able to verify.");
+    // Still return success since email was sent, but log the storage failure
+  }
 
   return NextResponse.json({ success: true });
 }

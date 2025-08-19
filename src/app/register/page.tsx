@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ChartBarIcon } from "@heroicons/react/24/outline";
-import { v4 as uuidv4 } from "uuid";
 
 const RegisterPage = () => {
   const router = useRouter();
@@ -66,6 +65,10 @@ const RegisterPage = () => {
     setPasswordStrength({ level, progress });
   };
 
+  function generateUserId() {
+    return `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
   // Step 1: Send OTPs
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,6 +95,31 @@ const RegisterPage = () => {
     }
   };
 
+  // Resend OTP
+  const handleResendOtp = async () => {
+    setOtpLoading(true);
+    setOtpError("");
+    try {
+      const res = await fetch("/api/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const result = await res.json();
+      setOtpLoading(false);
+      if (result.success) {
+        setOtpError(""); // Clear any previous errors
+        // Show success message
+        alert("OTP resent successfully!");
+      } else {
+        setOtpError(result.error || "Failed to resend OTP");
+      }
+    } catch (err) {
+      setOtpLoading(false);
+      setOtpError("Failed to resend OTP. Please try again.");
+    }
+  };
+
   // Step 2: Verify OTPs and register
   const handleOtpVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,7 +139,7 @@ const RegisterPage = () => {
     }
     // Register user
     try {
-      const userId = uuidv4(); // Generate UUID for the user
+      const userId = generateUserId(); // Generate userId for the user
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -156,7 +184,7 @@ const RegisterPage = () => {
               Portfolio Manager
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Create a new account
+              {otpStep ? "Verify OTP" : "Create a new account"}
             </p>
           </div>
           {!otpStep ? (
@@ -261,6 +289,9 @@ const RegisterPage = () => {
                 </a>
               </span>
             </div>
+            {otpError && (
+              <div className="text-sm text-red-500 mt-1">{otpError}</div>
+            )}
             <Button
               type="submit"
               className="w-full"
@@ -272,7 +303,7 @@ const RegisterPage = () => {
                 !name
               }
             >
-              {loading ? "Creating account..." : "Create Account"}
+              {loading ? "Sending OTP..." : "Send OTP"}
             </Button>
             <div className="text-center mt-4">
               <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -285,25 +316,24 @@ const RegisterPage = () => {
                 </a>
               </p>
             </div>
-            <Button
-              type="button"
-              className="w-full mt-4 bg-blue-500 text-white"
-              onClick={() => router.push(`/investor/info-form?userId=test-user-id`)}
-            >
-              Go to Info Form (Test)
-            </Button>
             </form>
           ) : (
             <form onSubmit={handleOtpVerify} className="space-y-4">
+              <div className="text-center mb-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  We've sent a 6-digit OTP to <strong>{email}</strong>
+                </p>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Enter Email OTP (sent via Brevo)
+                  Enter Email OTP
                 </label>
                 <Input
                   type="text"
                   value={emailOtp}
                   onChange={e => setEmailOtp(e.target.value)}
                   placeholder="Enter the 6-digit code"
+                  maxLength={6}
                   required
                 />
               </div>
@@ -313,6 +343,25 @@ const RegisterPage = () => {
               <Button type="submit" className="w-full" disabled={otpLoading}>
                 {otpLoading ? "Verifying..." : "Verify & Complete Registration"}
               </Button>
+              <div className="flex gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="flex-1" 
+                  onClick={() => setOtpStep(false)}
+                >
+                  Back
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  className="flex-1" 
+                  onClick={handleResendOtp}
+                  disabled={otpLoading}
+                >
+                  Resend OTP
+                </Button>
+              </div>
             </form>
           )}
         </div>
